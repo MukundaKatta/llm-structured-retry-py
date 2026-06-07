@@ -1,8 +1,13 @@
 """Tests for llm-structured-retry-py."""
+
 import json
 import pytest
 from llm_structured_retry import (
-    StructuredRetry, StructuredRetryExhausted, RetryAttempt, RetryResult, structured_retry
+    StructuredRetry,
+    StructuredRetryExhausted,
+    RetryAttempt,
+    RetryResult,
+    structured_retry,
 )
 
 
@@ -10,10 +15,12 @@ def make_call_fn(responses):
     """Returns a call_fn that cycles through a list of responses."""
     responses = list(responses)
     idx = [0]
+
     def call_fn(messages):
         r = responses[idx[0] % len(responses)]
         idx[0] += 1
         return r
+
     return call_fn
 
 
@@ -83,6 +90,7 @@ def test_history_tracks_attempts():
 
 def test_on_retry_callback():
     seen = []
+
     def on_retry(attempt: RetryAttempt):
         seen.append(attempt.attempt)
 
@@ -118,7 +126,9 @@ def test_error_injected_in_messages():
     # Second call should have the error message
     assert len(received_messages) == 2
     last_msgs = received_messages[1]
-    assert any("Error:" in m.get("content", "") for m in last_msgs if m["role"] == "user")
+    assert any(
+        "Error:" in m.get("content", "") for m in last_msgs if m["role"] == "user"
+    )
 
 
 def test_wrap_returns_callable():
@@ -149,3 +159,31 @@ def test_retry_attempt_dataclass():
 def test_retry_result_ok():
     rr = RetryResult(value=42, attempts=1)
     assert rr.ok is True
+
+
+def test_invalid_max_attempts_raises():
+    with pytest.raises(ValueError):
+        StructuredRetry(max_attempts=0)
+    with pytest.raises(ValueError):
+        StructuredRetry(max_attempts=-1)
+
+
+def test_structured_retry_passes_on_retry_callback():
+    seen = []
+
+    def on_retry(attempt: RetryAttempt):
+        seen.append(attempt.attempt)
+
+    responses = [
+        {"role": "assistant", "content": "bad"},
+        {"role": "assistant", "content": '{"z": 3}'},
+    ]
+    result = structured_retry(
+        messages=[{"role": "user", "content": "JSON"}],
+        call_fn=make_call_fn(responses),
+        parse_fn=json_parse_fn,
+        max_attempts=3,
+        on_retry=on_retry,
+    )
+    assert result.value == {"z": 3}
+    assert seen == [1]

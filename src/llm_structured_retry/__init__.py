@@ -12,7 +12,9 @@ class StructuredRetryExhausted(Exception):
     def __init__(self, attempts: int, last_error: str) -> None:
         self.attempts = attempts
         self.last_error = last_error
-        super().__init__(f"Structured retry failed after {attempts} attempt(s): {last_error}")
+        super().__init__(
+            f"Structured retry failed after {attempts} attempt(s): {last_error}"
+        )
 
 
 @dataclass
@@ -77,6 +79,8 @@ class StructuredRetry:
         instruction_suffix: str = " Please try again and fix the issue.",
         on_retry: Callable[[RetryAttempt], None] | None = None,
     ) -> None:
+        if max_attempts < 1:
+            raise ValueError(f"max_attempts must be >= 1, got {max_attempts}")
         self.max_attempts = max_attempts
         self.error_prefix = error_prefix
         self.instruction_suffix = instruction_suffix
@@ -129,7 +133,9 @@ class StructuredRetry:
                     }
                     current_messages = current_messages + [error_msg]
 
-        raise StructuredRetryExhausted(self.max_attempts, history[-1].error if history else "")
+        raise StructuredRetryExhausted(
+            self.max_attempts, history[-1].error if history else ""
+        )
 
     def wrap(
         self,
@@ -137,8 +143,10 @@ class StructuredRetry:
         parse_fn: Callable[[Any], Any],
     ) -> Callable[[list[dict]], RetryResult]:
         """Return a callable that runs the structured retry loop."""
+
         def runner(messages: list[dict]) -> RetryResult:
             return self.run(messages, call_fn, parse_fn)
+
         return runner
 
 
@@ -148,11 +156,16 @@ def structured_retry(
     parse_fn: Callable[[Any], Any],
     max_attempts: int = 3,
     error_prefix: str = "Your previous response was invalid. Error: ",
+    instruction_suffix: str = " Please try again and fix the issue.",
+    on_retry: Callable[[RetryAttempt], None] | None = None,
 ) -> RetryResult:
     """Convenience function for one-shot structured retry."""
-    return StructuredRetry(max_attempts=max_attempts, error_prefix=error_prefix).run(
-        messages, call_fn, parse_fn
-    )
+    return StructuredRetry(
+        max_attempts=max_attempts,
+        error_prefix=error_prefix,
+        instruction_suffix=instruction_suffix,
+        on_retry=on_retry,
+    ).run(messages, call_fn, parse_fn)
 
 
 __all__ = [
