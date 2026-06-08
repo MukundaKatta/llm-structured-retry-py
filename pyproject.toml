@@ -22,3 +22,6 @@ Homepage = "https://github.com/MukundaKatta/llm-structured-retry-py"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+llm_structured_retry = ["py.typed"]
